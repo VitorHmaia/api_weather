@@ -17,10 +17,10 @@ class WeatherView(View):
 class WeatherGenerate(View):
     def get(self, request):
         repository = WeatherRepository(collectionName='weathers')
-        wheater = {
+        weather = {
             "temperature" : 28,
             "date": "hoje"
             }
-        repository.insert(wheater)
+        repository.insert(weather)
 
         return redirect('Weather View')
