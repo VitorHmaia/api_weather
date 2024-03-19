@@ -10,14 +10,14 @@ from .serializer import WeatherEntitySerializer
 
 class WeatherView(View):
     def get(self, request):
-        repository = WeatherRepository(collectionName='weathers')
-        weathers = repository.getAll()
+        repository = WeatherRepository(collection_name='weathers')
+        weathers = repository.get_all()
         return render(request, "home.html", {"weathers":weathers})
     
 
 class WeatherGenerate(View):
     def get(self, request):
-        repository = WeatherRepository(collectionName='weathers')
+        repository = WeatherRepository(collection_name='weathers')
         weather = {
             "temperature" : 28,
             "date": "hoje"
@@ -29,5 +29,5 @@ class WeatherGenerate(View):
 class WeatherReset(View):
     def get(self, request):
         repository = WeatherRepository(collection_name='weathers')
-        repository.deleteAll()
+        repository.delete_all()
         return redirect('Weather View')
