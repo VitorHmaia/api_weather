@@ -6,6 +6,7 @@ from django.views import View
 from django.shortcuts import render, redirect
 from .models import WeatherEntity
 from .repositories import WeatherRepository
+from .serializer import WeatherEntitySerializer
 
 class WeatherView(View):
     def get(self, request):
@@ -23,4 +24,10 @@ class WeatherGenerate(View):
             }
         repository.insert(weather)
 
+        return redirect('Weather View')
+    
+class WeatherReset(View):
+    def get(self, request):
+        repository = WeatherRepository(collection_name='weathers')
+        repository.deleteAll()
         return redirect('Weather View')
