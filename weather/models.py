@@ -1,4 +1,5 @@
 from django.db import models
+from typing import Any
 
 # weather/models.py
 class WeatherEntity:
