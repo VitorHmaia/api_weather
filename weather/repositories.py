@@ -1,3 +1,4 @@
+import uuid
 from django.conf import settings
 import pymongo
 
@@ -21,19 +22,39 @@ class WeatherRepository:
         return collection
 
     def get_by_id(self, id):
-        return self.get_collection().find_one({"_id": id})
+        document = self.get_collection().find_one({"id": id})
+        return document
         
     def get_all(self):
-        return self.get_collection().find({})
+        document = self.get_collection().find({}).sort("date", -1)
+        return document
         
     def get_by_attribute(self, attribute, value):
         return self.get_collection().find({attribute: value})
         
-    def insert(self, document) -> None:
-        return self.get_collection().insert_one(document)
+    def insert(self, document):
+        data = {
+            "id": str(uuid.uuid4()),
+            "temperature": document['temperature'],
+            "date": document['date'],
+            "atmospheric_pressure": document['atmospheric_pressure'],
+            "humidity": document['humidity'],
+            "city": document['city'],
+            "weather": document['weather']
+        }
+        self.get_collection().insert_one(data)
         
     def delete(self, id) -> None:
         return self.get_collection().delete_one({"_id": id})
         
     def delete_all(self) -> None:
         return self.get_collection().delete_many({})
+    
+    def update(self, query, data):
+        self.get_collection().update_one({"id": query}, {"$set": data})
+        
+    def delete(self, query):
+        self.get_collection().delete_one({"id": query})
+        
+    def delete_by_id(self, id):
+        self.get_collection().delete_one({"id": id})
