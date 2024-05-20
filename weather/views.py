@@ -1,27 +1,31 @@
 from django.shortcuts import render, redirect
-from .repositories import WeatherRepository
+from django.views import View
 from django.http import HttpResponse
-from rest_framework.views import View
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import authenticate, login
+from .repositories import WeatherRepository
 from .models import WeatherEntity
 from datetime import datetime
 from random import randrange
 from .serializer import WeatherSerializer
 from .forms import WeatherForm
+from .authentication import generate_token
 from typing import Any
 
 MAIN_VIEW = 'Weather View'
 
-class WeatherView(View):
-    
+class UnauthorizedView(View):
+    def get(self, request):
+        return render(request, 'unauthorized.html')
 
-        
+class WeatherView(View):
     def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         self.repository = WeatherRepository(collection_name='weathers')
 
     def get(self, request):
         try:
-            repository = WeatherRepository(collection_name='weathers')
-            weathers = list(repository.get_all())
+            weathers = list(self.repository.get_all())
             serializer = WeatherSerializer(data=weathers, many=True)
             if serializer.is_valid():
                 weathers_data = serializer.data
@@ -41,8 +45,7 @@ class WeatherView(View):
             "weather": request.POST.get("weather")
         }
         self.repository.insert(weather_data)
-        
-        return redirect(MAIN_VIEW)
+        return redirect('home')
 
     def put(self, request):
         weather_id = request.POST.get("weather_id")
@@ -56,26 +59,41 @@ class WeatherView(View):
         }
         query = {"_id": weather_id}
         self.repository.update(query, weather_data)
-        return redirect(MAIN_VIEW)
+        return redirect('home')
 
     def delete(self, request):
         weather_id = request.POST.get("weather_id")
         query = {"_id": weather_id}
         self.repository.delete(query)
-        return redirect(MAIN_VIEW)
+        return redirect('home')
 
+class UserTokenizer(View):
+    def post(self, request):
+        try:
+            data = request.POST
+            username = data.get('username')
+            password = data.get('password')
+
+            if username is None or password is None:
+                return HttpResponse('Username and password are required.', status=400)
+
+            user = authenticate(username=username, password=password)
+            if user:
+                token = generate_token(user)
+                return HttpResponse(token, content_type='text/plain')
+            else:
+                return HttpResponse('Username and/or password incorrect.', status=401)
+        except Exception as e:
+            return HttpResponse(str(e), status=500)
 
 class WeatherGenerate(View):
-    
-    repository = ''
-
-    
     def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         self.repository = WeatherRepository(collection_name='weathers')
     
     def get(self, request):
-        CIDADES_BRASIL = ["São Paulo", "Rio de Janeiro", "Salvador", "Brasília", "Fortaleza", "Belo Horizonte", "Manaus", "Curitiba", "Recife", "Porto Alegre"];
-        CONDICOES_TEMPO = ["Ensolarado", "Nublado", "Chuvoso", "Neve", "Tempestade", "Parcialmente nublado", "Neblina", "Ventania"];
+        CIDADES_BRASIL = ["São Paulo", "Rio de Janeiro", "Salvador", "Brasília", "Fortaleza", "Belo Horizonte", "Manaus", "Curitiba", "Recife", "Porto Alegre"]
+        CONDICOES_TEMPO = ["Ensolarado", "Nublado", "Chuvoso", "Neve", "Tempestade", "Parcialmente nublado", "Neblina", "Ventania"]
         weather_data = {
             "temperature": randrange(5, 30),
             "date": datetime.now(),
@@ -85,45 +103,33 @@ class WeatherGenerate(View):
             "weather": CONDICOES_TEMPO[randrange(len(CONDICOES_TEMPO))]
         }
         
-        # Create an instance of the WeatherSerializer with weather_data
         serializer = WeatherSerializer(data=weather_data)
-        
         if serializer.is_valid():
-            # Save the new WeatherEntity object to the database using the repository
             self.repository.insert(serializer.validated_data)
         else:
-            # If the data is invalid, print the errors to the console
             print(serializer.errors)
 
-        # Redirect to the main weather view
-        return redirect(MAIN_VIEW)
+        return redirect('home')
 
-    
-    
 class WeatherClear(View):
-    
-    repository = ''
-    
-    
     def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         self.repository = WeatherRepository(collection_name='weathers')
     
     def get(self, request):
         self.repository.delete_all()
-        return redirect(MAIN_VIEW)
-
+        return redirect('home')
 
 class WeatherInsert(View):
     def get(self, request):
         weather_form = WeatherForm()
-
-        return render(request, "add-weather.html", {"form":weather_form})
+        return render(request, "add-weather.html", {"form": weather_form})
     
     def post(self, request):
         weather_form = WeatherForm(request.POST)
         if weather_form.is_valid():
             serializer = WeatherSerializer(data=weather_form.data)
-            if (serializer.is_valid()):
+            if serializer.is_valid():
                 repository = WeatherRepository(collection_name='weathers')
                 repository.insert(serializer.validated_data)
             else:
@@ -131,48 +137,54 @@ class WeatherInsert(View):
         else:
             print(weather_form.errors)
 
-        return redirect(MAIN_VIEW)
-    
-    
-class WeatherEdit(View):
-  
-  repository = ''
-  
-  def __init__(self,) -> None:
-    self.repository = WeatherRepository(collection_name='weathers')
-  
-  def post(self, request, id):
-      weather_form = WeatherForm(request.POST)
-      if weather_form.is_valid():
-          serializer = WeatherSerializer(data=weather_form.data)
-          if (serializer.is_valid()):
-              repository = WeatherRepository(collection_name='weathers')
-              repository.update(id, serializer.validated_data)
-          else:
-              print(serializer.errors)
-      else:
-          print(weather_form.errors)
+        return redirect('home')
 
-      return redirect(MAIN_VIEW)
-  
-  def get(self, request, id):
-      weather_data = self.repository.get_by_id(id)
-      weather_form = WeatherForm(initial=weather_data)
-      weathers = list(self.repository.get_all())
-      serializer = WeatherSerializer(data=weathers, many=True)
-      if serializer.is_valid():
-        weathers_data = serializer.data
-        return render(request, "edit-weather.html", {"form":weather_form, 'id':id, "weathers": weathers_data})
-  
-  
-  
+class WeatherEdit(View):
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.repository = WeatherRepository(collection_name='weathers')
+    
+    def post(self, request, id):
+        weather_form = WeatherForm(request.POST)
+        if weather_form.is_valid():
+            serializer = WeatherSerializer(data=weather_form.data)
+            if serializer.is_valid():
+                repository = WeatherRepository(collection_name='weathers')
+                repository.update(id, serializer.validated_data)
+            else:
+                print(serializer.errors)
+        else:
+            print(weather_form.errors)
+        return redirect('home')
+    
+    def get(self, request, id):
+        weather_data = self.repository.get_by_id(id)
+        weather_form = WeatherForm(initial=weather_data)
+        weathers = list(self.repository.get_all())
+        serializer = WeatherSerializer(data=weathers, many=True)
+        if serializer.is_valid():
+            weathers_data = serializer.data
+            return render(request, "edit-weather.html", {"form": weather_form, 'id': id, "weathers": weathers_data})
+
 class WeatherRemove(View):
-    
-    repository = ''
-    
-    def __init__(self,) -> None:
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         self.repository = WeatherRepository(collection_name='weathers')
     
     def get(self, request, id):
         self.repository.delete_by_id(id)
-        return redirect(MAIN_VIEW)
+        return redirect('home')
+
+class RegisterView(View):
+    def get(self, request):
+        form = UserCreationForm()
+        return render(request, 'register.html', {'form': form})
+
+    def post(self, request):
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            return redirect('home')
+        else:
+            return render(request, 'register.html', {'form': form})
